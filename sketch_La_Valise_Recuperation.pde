@@ -32,7 +32,7 @@ int ymax = height-1;
 import processing.serial.*;             // Charge la bibliothèque serial.
 
 Serial myPort;                          // Création de l'objet myPort (classe Serial).
-int baudrate = 9600;                  // Vitesse de transfert des données (en bauds).
+int baudrate = 9600;                    // Vitesse de transfert des données (en bauds).
 int valPort = 0;                        // Données reçues depuis le port série.
 
 String buffer = "";                     // Un petit tampon pour récupérer la dernière valeur  
@@ -56,7 +56,7 @@ void setup()
   myPort = new Serial(this, portName, baudrate);
   
   // Créé un fichier données.csv dans le répertoire sketch (lisible par tout tableur).
-  // Le séparateur de données est l'espace.
+  // Le séparateur de données est le point virgule.
   output = createWriter("données.csv");
 }
 
