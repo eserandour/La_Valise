@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////////////////////
 /*
-   La Valise (version 2016.10.05a)
-   Copyright 2013, 2014, 2015, 2016 - Eric Sérandour
+   La Valise (version 2019.05.11b - 23h36)
+   Copyright 2013, 2014, 2015, 2016, 2019 - Eric Sérandour
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,23 +19,25 @@
 */
 //////////////////////////////////////////////////////////////////////////////////////
 /*
-  Compilation réussie avec Arduino 1.6.12
+  Compilation réussie avec Arduino 1.6.13
+  Compilation réussie avec Arduino 1.8.5
   Type de carte : "maniacbug" Mighty 1284p 16 Mhz using Optiboot
   Pour installer cette carte => https://github.com/JChristensen/mighty-1284p/tree/v1.6.3
 /*
 //////////////////////////////////////////////////////////////////////////////////////
 
 /*
-  L'électronique :
+  L'électronique (non exhaustif) :
   
   * Microcontroleur ATMega 1284P PU : http://serandour.com/atmega1284p-et-arduino.htm
   * Quartz 16 Mhz
-  * Shield Wireless SD Arduino (carte SD + éventuellement module XBee).
+  * MicroSD Card Adapter de chez Catalex
   * Afficheur LCD 4x20 caractères.
   * Clavier 12 touches matricielles.
   * Circuit intégré PCF8574P (interface parallèle 8 bits I2C)
   * Horloge RTC DS1307
-  * Module BMP180 de chez Adafruit (capteur de pression)
+  * Module BMP180 de chez Adafruit (capteur de pression + température)
+  * Capteur de température LM35CZ
   * Capteur de lumière GA1A12S202 de chez Adafruit
 
   Le circuit :
@@ -197,11 +199,12 @@ const byte TAG_MENU_ENREGISTREUR = 3;
 const byte TAG_MENU_CAPTEURS = 4;
 const byte TAG_MENU_CADENCE = 5;
 const byte TAG_MENU_BARO_ALTIMETRE = 6;
-const byte TAG_MENU_LUXMETRE = 7;
-const byte TAG_ENREGISTRER_FICHIER = 8;
-const byte TAG_TRANSFERER_FICHIER = 9;
-const byte TAG_MENU_ENTREES_ANALOGIQUES = 10;
-const byte TAG_MENU_ENTREES_NUMERIQUES = 11;
+const byte TAG_MENU_THERMOMETRE = 7;
+const byte TAG_MENU_LUXMETRE = 8;
+const byte TAG_ENREGISTRER_FICHIER = 9;
+const byte TAG_TRANSFERER_FICHIER = 10;
+const byte TAG_MENU_ENTREES_ANALOGIQUES = 11;
+const byte TAG_MENU_ENTREES_NUMERIQUES = 12;
 byte ecran = TAG_ECRAN_ACCUEIL;
 int defilement = 0;
 
@@ -253,19 +256,22 @@ const byte EN0 = 21;
 const byte EN1 = 20;
 const byte EN2 = 19;
 const byte EN3 = 18;
-const byte DECLENCHEUR = EN0; // Pour déclencher un enregistrement en mode manuel
+const byte DECLENCHEUR = EN3; // Pour déclencher un enregistrement en mode manuel
+
 
 // *** Le baromètre BMP180
 #define ADRESSE_BMP180 0x77 // 119 en décimal
 
-// *** Le luxmètre
+// Capteurs sur entrées analogiques (Luxmètre & Thermomètre)
 const byte TRANSLATION = 8; // Pour éviter que 2 entrées aient la meme adresse
-                            // car le luxmètre est branché sur une entrée analogique.
+// *** Le luxmètre
 #define ADRESSE_LUXMETRE A7 + TRANSLATION
+// *** Le thermomètre LM35
+#define ADRESSE_THERMOMETRE A6 + TRANSLATION
 
 // *** Entrées disponibles
 // Modifier en conséquence la procédure lectureCapteurs() quelques lignes en dessous
-const byte NB_ENTREES_MAX = 14;
+const byte NB_ENTREES_MAX = 15;
 const byte ENTREE[NB_ENTREES_MAX] = {
   EA0,                  //  Entrée analogique
   EA1,                  //  Entrée analogique
@@ -280,6 +286,7 @@ const byte ENTREE[NB_ENTREES_MAX] = {
   EN2,                  //  Entrée numérique
   EN3,                  //  Entrée numérique
   ADRESSE_BMP180,       //  Adresse du baromètre BMP180 sur le port I2C
+  ADRESSE_THERMOMETRE,  //  Adresse du thermomètre
   ADRESSE_LUXMETRE      //  Adresse du luxmètre
 };
 const String NOM_ENTREE[NB_ENTREES_MAX] = {
@@ -296,6 +303,7 @@ const String NOM_ENTREE[NB_ENTREES_MAX] = {
   "BROCHE 25 (N)",      // EN2
   "BROCHE 24 (N)",      // EN3
   "BARO-ALTIMETRE",     // ADRESSE_BMP180
+  "THERMOMETRE",        // ADRESSE_THERMOMETRE
   "LUXMETRE"            // ADRESSE_LUXMETRE
 };
 const byte POIDS_ENTREE[NB_ENTREES_MAX] = {
@@ -312,9 +320,10 @@ const byte POIDS_ENTREE[NB_ENTREES_MAX] = {
   1, // EN2 mesure 1 seule grandeur
   1, // EN3 mesure 1 seule grandeur
   4, // Le baromètre renvoie 4 grandeurs : La pression absolue, la pression relative, l'altitude, la température
+  1, // Le thermomètre renvoie 1 seule grandeur : La température
   1  // Le luxmètre renvoie 1 seule grandeur : L'éclairement lumineux
 };
-const byte NB_MESURES_MAX = 17; // La somme du poids des entrées (1+1+1+1+1+1+1+1+1+1+1+1+4+1)
+const byte NB_MESURES_MAX = 18; // La somme du poids des entrées (1+1+1+1+1+1+1+1+1+1+1+1+4+1+1)
 const String NOM_MESURE[NB_MESURES_MAX] = {
   "BROCHE 40 (A)",
   "BROCHE 39 (A)",
@@ -329,6 +338,7 @@ const String NOM_MESURE[NB_MESURES_MAX] = {
   "BROCHE 25 (N)",
   "BROCHE 24 (N)",
   "PRESSION ABSOLUE", "PRESSION RELATIVE", "ALTITUDE", "TEMPERATURE",
+  "TEMPERATURE",
   "ECLAIREMENT"
 };
 
@@ -343,9 +353,11 @@ long mesureBrute[NB_MESURES_MAX]; // initialement int mais modifié à cause du 
 float pressionAbsolue = 0;
 float pressionRelative = 0;
 float altitude = 0;
-float temperatureBMP180 = 0; // Température à l'intérieur de la centrale
+float temperatureBMP180 = 0; // Température
 float altitudeReference = 0; // Altitude connue rentrée au clavier
 float pressionReference = 0; // Pression à l'altitude de référence
+
+// Thermomètre
 
 // Luxmètre
 
@@ -419,17 +431,23 @@ void lectureCapteurs()
     }       
     else if (adresseCapteur[i] == ENTREE[12]) {  // Baromètre BMP180
       barometreRead(ENTREE[12]);
-      mesureBrute[j] = pressionAbsolue * 10;    // Pour récupérer la première décimale
-      mesureBrute[j+1] = pressionRelative * 10; // Pour récupérer la première décimale
-      mesureBrute[j+2] = altitude * 10;         // Pour récupérer la première décimale
-      mesureBrute[j+3] = temperatureBMP180 * 10;// Pour récupérer la première décimale
+      mesureBrute[j] = pressionAbsolue * 10;    // x 10 : Pour récupérer la première décimale
+      mesureBrute[j+1] = pressionRelative * 10; // x 10 : Pour récupérer la première décimale
+      mesureBrute[j+2] = altitude * 10;         // x 10 : Pour récupérer la première décimale
+      mesureBrute[j+3] = temperatureBMP180 * 10;// x 10 : Pour récupérer la première décimale
       j += POIDS_ENTREE[12];
     }
-    else if (adresseCapteur[i] == ENTREE[13]) {  // Luxmètre
-      mesureBrute[j] = luxmetreRead(ENTREE[13]-TRANSLATION); // -TRANSLATION car le luxmètre est
-                                                             // branché sur une entrée analogique.
+    else if (adresseCapteur[i] == ENTREE[13]) {  // Thermomètre
+      mesureBrute[j] = thermometreRead(ENTREE[13]-TRANSLATION) * 10; // x 10 : Pour récupérer la première décimale
+                                                                     // -TRANSLATION car le thermomètre est
+                                                                     // branché sur une entrée analogique.
       j += POIDS_ENTREE[13];
-    }       
+    }           
+    else if (adresseCapteur[i] == ENTREE[14]) {  // Luxmètre
+      mesureBrute[j] = luxmetreRead(ENTREE[14]-TRANSLATION); // -TRANSLATION car le luxmètre est
+                                                             // branché sur une entrée analogique.
+      j += POIDS_ENTREE[14];
+    }
   }
   nbMesures=j;
 }
@@ -490,6 +508,7 @@ void loop()
     case TAG_MENU_CAPTEURS: afficherMenuCapteurs(); break;
     case TAG_MENU_BARO_ALTIMETRE: afficherBaroAltimetre(ADRESSE_BMP180); break;
     case TAG_MENU_LUXMETRE : afficherLuxmetre(ADRESSE_LUXMETRE); break;
+    case TAG_MENU_THERMOMETRE : afficherThermometre(ADRESSE_THERMOMETRE); break;
     case TAG_ENREGISTRER_FICHIER: enregistrerFichier(); break;
     case TAG_TRANSFERER_FICHIER: transfererFichier(); break;
     case TAG_MENU_ENTREES_ANALOGIQUES: afficherEntreesAnalogiques(); break;
@@ -520,14 +539,15 @@ void afficherEcranAccueil()
 void afficherMenuPrincipal()
 {
   // Affichage
-  const byte NB_LIGNES_MENU = 6;
+  const byte NB_LIGNES_MENU = 7;
   String menu[] = {
     "0: ACCUEIL",
     "1: ENREGISTREUR",
     "2: 40/../33 (A)",
     "3: 27/../24 (N)",
-    "4: BARO-ALTIMETRE",  
-    "5: LUXMETRE"
+    "4: BARO-ALTIMETRE",
+    "5: THERMOMETRE", 
+    "6: LUXMETRE"
   };  
   afficheMenu(menu, NB_LIGNES_MENU);
 
@@ -538,7 +558,8 @@ void afficherMenuPrincipal()
     case 2: selectMenu(TAG_MENU_ENTREES_ANALOGIQUES); break;
     case 3: selectMenu(TAG_MENU_ENTREES_NUMERIQUES); break;
     case 4: selectMenu(TAG_MENU_BARO_ALTIMETRE); break;
-    case 5: selectMenu(TAG_MENU_LUXMETRE); break;
+    case 5: selectMenu(TAG_MENU_THERMOMETRE); break;
+    case 6: selectMenu(TAG_MENU_LUXMETRE); break;
     case TOUCHE_DIESE: defileMenu(NB_LIGNES_MENU); break;
   }
 }
@@ -1677,5 +1698,115 @@ long luxmetreRead(int adresseEA)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
+/*
+    THERMOMETRE A BASE DE LM35CZ / BMP180
+*/
+//////////////////////////////////////////////////////////////////////////////////////
 
+void afficherThermometre(int adresseEA)
+{
+  boolean quitter = false;
+  do {
+    // Création du caractère °
+    byte degre[8] = {   // Déclaration d’un tableau de 8 octets pour le caractère °.
+      B00111,           // Définition de chaque octet au format binaire :
+      B00101,           // 1 pour un pixel affiché – 0 pour un pixel éteint.
+      B00111,           // Les 3 bits de poids forts sont ici inutiles.
+      B00000,
+      B00000,
+      B00000,
+      B00000,
+      B00000
+    };
+    const byte DEGRE = 1;
+    lcd.createChar(DEGRE, degre); // Création du caractère personnalisé degré
 
+    // LM35CZ
+    float temperatureLM35CZ = thermometreRead(adresseEA);
+    lcd.setCursor(0,0);
+    lcd.print("THERMOMETRE");    
+    lcd.setCursor(0,1);
+    lcd.print("T LM35CZ  : ");
+    dtostrf(temperatureLM35CZ, 5, 1, ligne);
+    lcd.print(ligne);
+    lcd.write(DEGRE);
+    lcd.print("C");
+
+    // BMP180
+    // Initialisation du baro-altimètre
+    initBaroAltimetre(ADRESSE_BMP180);
+    // Lecture de la température notamment
+    byte codeErreur = barometreRead(ADRESSE_BMP180);
+    if (codeErreur != 0) {
+      lcd.setCursor(0,2);
+      lcd.print("T BMP180  :  ERREUR");
+      /*lcd.print("ERREUR (CODE ");
+      lcd.print(codeErreur);
+      lcd.print(")");*/
+      bipErreur();
+      delay(1000);
+      quitter = true;
+    }
+    else {
+      lcd.setCursor(0,2);
+      lcd.print("T BMP180  : ");
+      dtostrf(temperatureBMP180, 5, 1, ligne);
+      lcd.print(ligne);
+      lcd.write(DEGRE);
+      lcd.print("C");
+    }
+
+    // Moyenne du LM35CZ et BMP180
+    float temperature = (temperatureLM35CZ + temperatureBMP180) / 2;
+    lcd.setCursor(0,3);
+    lcd.print("T MOYENNE : ");
+    dtostrf(temperature, 5, 1, ligne);
+    lcd.print(ligne);
+    lcd.write(DEGRE);
+    lcd.print("C");    
+    
+    for (int i=0; i<100; i++) {
+      delay(1);
+      char key = getKey();
+      if (key == '0') {
+        quitter = true;
+        break;  
+      }        
+    }
+  } while (quitter == false);
+  selectMenu(TAG_ECRAN_ACCUEIL);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////
+
+float thermometreRead(int adresseEA)  // Seulement le LM35CZ
+{
+  #define NBREADINGS 5
+  long total = 0;
+  for(int i=0; i<NBREADINGS; i++) {
+    total = total + analogRead(adresseEA);
+    delay(20); // On laisse un peu de temps au capteur
+  }
+  float moyenne = float(total) / NBREADINGS; // On calcule la moyenne
+
+  // Convertit moyenne en une tension en volts (un simple produit en croix). 
+  float tension = 5.0 * moyenne / 1023.0;
+  
+  // L'amplification avec l'ampli op non inverseur est de Vs/Ve = (1 + R3 / R2)
+  // R3 théorique = 39 kilohms
+  // R2 théorique = 10 kilohms
+  // Amplification théorique = (1 + (39 / 10)) = 4.9
+  // Sur mon montage, quand en sortie de capteur on a 0,21 V,
+  // au niveau de l'entrée analogique de la carte Arduino on a 1.04 V.
+  // L'amplification mesurée est donc de 1.04 / 0,21 = 4.95.
+  float tension_avant_amplification = tension / 4.9;
+  
+  // Le capteur de température LM35CZ fournit une 
+  // réponse linéaire de 10 mV (0,01 V) par °C 
+  // dans l'intervalle [+ 2 °C ; + 110 °C].  
+  float temperature = tension_avant_amplification / 0.01;
+  
+  return temperature;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////
