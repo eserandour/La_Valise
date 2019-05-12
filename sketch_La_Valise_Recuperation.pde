@@ -1,8 +1,9 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 /*
-   La valise : Récupération des données brutes (version 2016.10.15)
-   Copyright 2013, 2014, 2015, 2016 - Eric Sérandour
-   
+   La valise : Récupération des données brutes (version 2019.05.12)
+   Copyright 2013, 2014, 2015, 2016, 2019 - Eric Sérandour
+   http://3615.entropie.org
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2 of the License, or
@@ -19,7 +20,7 @@
 */
 //////////////////////////////////////////////////////////////////////////////////////////
 /*
-  Compile sous Processing 2.2.1
+  Compile sous Processing 3.5.3
 */
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -43,14 +44,18 @@ int finFichier = 0;                     // Teste si on a lu tout le fichier
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-void setup() 
-{
+void settings() {
   size(width, height);
-  
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+void setup() 
+{ 
   println("Ports séries disponibles :");
   println(Serial.list());
-  // Sur mon ordinateur, sous Ubuntu ou Debian, la carte Arduino est connectée au port 
-  // /dev/ttyUSB0, le premier dans la liste, d'où le 0 dans Serial.list()[0].  
+  // Sur mon ordinateur, sous Debian, la carte Arduino est connectée au port 
+  // /dev/ttyACM0, le premier dans la liste, d'où le 0 dans Serial.list()[0].  
   String portName = Serial.list()[0];
   myPort = new Serial(this, portName, baudrate);
   
