@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////////////
 /*
-   La Valise (version 2019.06.11a - 22h05)
+   La Valise (version 2019.06.11b - 22h05)
    Copyright 2013, 2014, 2015, 2016, 2019 - Eric Sérandour
 
    This program is free software; you can redistribute it and/or modify
