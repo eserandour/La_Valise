@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////////////////
 /*
-   La Valise (version 2019.05.11b - 23h36)
+   La Valise (version 2019.06.11a - 22h05)
    Copyright 2013, 2014, 2015, 2016, 2019 - Eric Sérandour
 
    This program is free software; you can redistribute it and/or modify
@@ -1271,6 +1271,8 @@ void transfererFichier()
         break;  // On sort de la boucle while  
       }
     }
+    // Marqueur de fin de fichier
+    Serial.write("\r\n"); // Retour à la ligne + Saut de ligne    
     // Close the file
     dataFile.close();
     delay(3000); // Le temps que le programme de récupération se ferme
